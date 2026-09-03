@@ -19,12 +19,25 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        const participantsList = details.participants
+          .map(
+            (participant) => `
+              <li>
+                <span>${participant}</span>
+                <button class="participant-remove" type="button" data-email="${participant}" aria-label="Remove ${participant}">&#128465;</button>
+              </li>`
+          )
+          .join("");
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p data-max-participants="${details.max_participants}"><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <h5>Participants</h5>
+            <ul class="participants-list">${participantsList}</ul>
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -60,11 +73,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (response.ok) {
         messageDiv.textContent = result.message;
-        messageDiv.className = "success";
+        messageDiv.className = "message success";
         signupForm.reset();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        messageDiv.className = "message error";
       }
 
       messageDiv.classList.remove("hidden");
@@ -79,6 +92,47 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
     }
+  });
+
+  activitiesList.addEventListener("click", async (event) => {
+    const removeButton = event.target.closest(".participant-remove");
+    if (!removeButton) {
+      return;
+    }
+
+    const activityCard = removeButton.closest(".activity-card");
+    const activity = activityCard.querySelector("h4").textContent;
+    const email = removeButton.dataset.email;
+
+    if (!window.confirm(`Unregister ${email} from ${activity}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.detail || "Failed to unregister participant");
+      }
+
+      removeButton.closest("li").remove();
+      const availability = activityCard.querySelector("p:nth-of-type(3)");
+      const participantCount = activityCard.querySelectorAll(".participants-list li").length;
+      availability.textContent = `Availability: ${
+        Number(availability.dataset.maxParticipants) - participantCount
+      } spots left`;
+      messageDiv.textContent = result.message;
+      messageDiv.className = "message success";
+    } catch (error) {
+      messageDiv.textContent = error.message;
+      messageDiv.className = "message error";
+    }
+
+    messageDiv.classList.remove("hidden");
   });
 
   // Initialize app
